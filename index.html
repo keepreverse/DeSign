@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DeSign | keepreverse</title>
+  
+  <!-- Preconnect для CDN -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  
+  <script src="libs/gsap/gsap.min.js" defer></script>
+  <script src="libs/swiper/swiper-bundle.min.js" defer></script>
+  <link rel="stylesheet" href="libs/swiper/swiper-bundle.min.css">
+  
+  <link rel="stylesheet" href="css/main.css">
+  <script src="js/app.js" defer></script>
+  
+  <!-- Preload критичных ресурсов -->
+  <link rel="preload" href="media/background.mp4" as="video">
+  <link rel="preload" href="img/logo.svg" as="image">
+</head>
+<body>
+
+  <div class="top-line">
+    <div class="container container-top">
+      <div>
+        <div class="logo">
+          <img src="img/logo.svg" alt="Company Logo" width="25" height="25">
+        </div>
+      </div>
+      <div>
+        <ul class="main-mnu">
+          <li><a href="#">About</a></li>
+          <li><a href="#">News</a></li>
+          <li><a href="#">Projects</a></li>
+          <li><a href="#">Contacts</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="swiper slider">
+    <div class="swiper-wrapper">
+      <div class="swiper-slide slide">
+        <div class="slide__content">
+          <h2>Abstract</h2>
+          <p>Designing for the future</p>
+          <button aria-label="Join us">Join Us</button>
+        </div>
+      </div>
+      <div class="swiper-slide slide">
+        <div class="slide__content">
+          <h2>Design</h2>
+          <p>Designing for the future</p>
+          <button aria-label="Join us">Join Us</button>
+        </div>
+      </div>
+      <div class="swiper-slide slide">
+        <div class="slide__content">
+          <h2>Future</h2>
+          <p>Designing for the future</p>
+          <button aria-label="Join us">Join Us</button>
+        </div>
+      </div>
+      <div class="swiper-slide slide">
+        <div class="slide__content">
+          <h2>Forever</h2>
+          <p>Designing for the future</p>
+          <button aria-label="Join us">Join Us</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="slider-bottom">
+      <div class="slider-pagination">
+        <div class="swiper-pagination" role="navigation" aria-label="Slide navigation"></div>
+      </div>
+      <div class="slider-navigation">
+        <div class="swiper-button-prev" role="button" aria-label="Previous slide"></div>
+        <div class="swiper-button-next" role="button" aria-label="Next slide"></div>
+      </div>
+    </div>
+  </div>
+
+  <video class="video-background" muted playsinline preload="auto" loop>
+    <source src="media/background.mp4" type="video/mp4">
+  </video>
+
+</body>
+</html>
