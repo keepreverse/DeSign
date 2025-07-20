@@ -5,16 +5,12 @@ video.playsInline = true;
 video.preload = 'auto';
 video.currentTime = 0;
 
-// Функция определения мобильного устройства
 function isMobileDevice() {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
 
-// Оптимизация: дождаться загрузки важных ресурсов
 window.addEventListener('load', () => {
   const isMobile = isMobileDevice();
-  
-  // Инициализация Swiper после загрузки страницы
   const swiper = initSwiper(isMobile);
   initVideoControls(swiper, isMobile);
 });
@@ -23,7 +19,7 @@ function initSwiper(isMobile) {
   return new Swiper('.swiper', {
     speed: isMobile ? 400 : 600,
     mousewheel: {
-      sensitivity: 1.2,
+      sensitivity: 1,
       releaseOnEdges: true
     },
     pagination: {
@@ -35,19 +31,22 @@ function initSwiper(isMobile) {
       prevEl: '.swiper-button-prev',
       nextEl: '.swiper-button-next'
     },
-    resistanceRatio: 0.7,
-    threshold: 10,
+    resistanceRatio: 0.1, // Сопротивление при достижении края (0-1)
+    threshold: 10, // Минимальное расстояние свайпа в пикселях (увеличьте для меньшей чувствительности)
     preventInteractionOnTransition: true,
-    followFinger: true,
-    slideToClickedSlide: false,
+    followFinger: true, // Следить за пальцем при свайпе
+    slideToClickedSlide: true,
     watchSlidesProgress: true,
     watchSlidesVisibility: true,
     allowTouchMove: true,
-    shortSwipes: true,
-    longSwipes: true,
+    shortSwipes: true, // Разрешить короткие свайпы
+    longSwipes: true, // Разрешить длинные свайпы
+    longSwipesRatio: 0.3, // Процент ширины слайда для длинного свайпа
+    shortSwipesRatio: 0.1, // Процент ширины слайда для короткого свайпа
     touchStartPreventDefault: true,
+    touchReleaseOnEdges: true, // Отпускать на краях
+    touchAngle: 90, // Максимальный угол отклонения для горизонтального свайпа
     
-    // Параметры для визуального смещения текста
     on: {
       progress: function() {
         const slides = this.slides;
@@ -75,13 +74,10 @@ function initSwiper(isMobile) {
 
 function initVideoControls(swiper, isMobile) {
   let videoAnimation = null;
-  let isVideoAnimating = false;
   let lastSlideIndex = swiper.activeIndex;
   
-  // Сохраняем позиции видео для каждого слайда
   const videoPositions = [];
   
-  // Установка начальной позиции видео
   const setInitialVideoPosition = () => {
     if (video.readyState >= 2) {
       calculateVideoPositions();
@@ -94,7 +90,6 @@ function initVideoControls(swiper, isMobile) {
     }
   };
   
-  // Расчет позиций видео для каждого слайда
   const calculateVideoPositions = () => {
     const slideCount = swiper.slides.length;
     const segment = video.duration / (slideCount - 1);
@@ -104,7 +99,6 @@ function initVideoControls(swiper, isMobile) {
     }
   };
   
-  // Запуск видео
   const startVideoPlayback = () => {
     const playPromise = video.play();
     
@@ -115,82 +109,66 @@ function initVideoControls(swiper, isMobile) {
     }
   };
   
-  // Обработчик изменения слайда (общий для всех типов навигации)
+  // УПРОЩЕННАЯ И ОПТИМИЗИРОВАННАЯ ФУНКЦИЯ ОБРАБОТКИ СМЕНЫ СЛАЙДОВ
   const handleSlideChange = function() {
-    // Пропускаем обработку если слайд не изменился
     if (this.activeIndex === lastSlideIndex) return;
     
-    // Получаем целевую позицию видео для текущего слайда
     const targetTime = videoPositions[this.activeIndex];
     const currentTime = video.currentTime;
     
     // Отменяем предыдущую анимацию
     if (videoAnimation) {
       videoAnimation.kill();
-      isVideoAnimating = false;
     }
     
-    // Определяем направление перехода
-    const direction = this.activeIndex > lastSlideIndex ? 1 : -1;
-    lastSlideIndex = this.activeIndex;
-    
-    // Общая логика анимации
-    video.classList.add('change');
-    isVideoAnimating = true;
-    
-    // Рассчитываем длительность анимации
+    // Рассчитываем базовую длительность анимации
     const timeDifference = Math.abs(targetTime - currentTime);
-    const maxDuration = isMobile ? 0.8 : 1.2;
-    const minDuration = isMobile ? 0.3 : 0.5;
+    const baseDuration = isMobile ? 0.5 : 0.7;
     
-    // Динамическая длительность на основе расстояния
-    let duration = Math.min(maxDuration, Math.max(minDuration, timeDifference * 0.5));
+    // Рассчитываем динамическую длительность
+    let duration = baseDuration;
     
-    // Для очень близких переходов делаем минимальную анимацию
-    if (timeDifference < 0.5) {
-      duration = minDuration;
+    // Для больших скачков делаем анимацию немного дольше
+    if (timeDifference > 3) {
+      duration = baseDuration * 1.4;
+    }
+    // Для маленьких скачков - короче
+    else if (timeDifference < 1) {
+      duration = baseDuration * 0.7;
     }
     
-    // Для мобильных: упрощенная анимация с короткой длительностью
-    if (isMobile) {
-      // Минимальная длительность для мобильных
-      duration = Math.min(0.6, Math.max(0.4, duration));
-      
-      videoAnimation = gsap.to(video, {
-        duration: duration,
-        currentTime: targetTime,
-        ease: "power2.out",
-        overwrite: "auto",
-        onComplete: () => {
-          videoAnimation = null;
-          isVideoAnimating = false;
-          video.classList.remove('change');
+    // Активируем визуальный эффект
+    video.classList.add('change');
+    
+    // Запускаем оптимизированную анимацию
+    videoAnimation = gsap.to(video, {
+      duration: duration,
+      currentTime: targetTime,
+      ease: "power2.out", // Простая и эффективная функция плавности
+      overwrite: "auto",
+      onComplete: () => {
+        videoAnimation = null;
+        video.classList.remove('change');
+      },
+      onUpdate: () => {
+        // Синхронизируем видео с прогрессом анимации
+        if (Math.abs(video.currentTime - targetTime) < 0.1) {
+          videoAnimation.progress(1);
         }
-      });
-    } 
-    // Для десктопа: более сложная анимация
-    else {
-      videoAnimation = gsap.to(video, {
-        duration: duration,
-        currentTime: targetTime,
-        ease: direction > 0 ? "power2.out" : "power2.in",
-        overwrite: "auto",
-        onComplete: () => {
-          videoAnimation = null;
-          isVideoAnimating = false;
-          video.classList.remove('change');
-        }
-      });
-    }
+      }
+    });
+    
+    lastSlideIndex = this.activeIndex;
   };
 
-  // Подписка на события Swiper
+  // ОДИНАКОВАЯ ОБРАБОТКА ВСЕХ ТИПОВ НАВИГАЦИИ
   swiper.on('slideChangeTransitionStart', handleSlideChange);
   
-  // Обработчик для пагинации (буллитов)
-  swiper.on('slideChange', function() {
-    if (this.clickedIndex !== undefined) {
-      handleSlideChange.call(this);
+  // Обработка кликов по буллитам
+  document.querySelector('.swiper-pagination').addEventListener('click', (e) => {
+    if (e.target.classList.contains('swiper-pagination-bullet')) {
+      const index = Array.from(e.target.parentNode.children).indexOf(e.target);
+      swiper.slideTo(index);
     }
   });
 
@@ -206,17 +184,17 @@ function initVideoControls(swiper, isMobile) {
     swiper.slideNext();
   });
   
-  // Перезапуск видео при завершении
+  // Перезапуск видео
   video.addEventListener('ended', () => {
-    video.currentTime = 0.1;
+    video.currentTime = 0;
     video.play();
   });
   
-  // Инициализация позиции и воспроизведения
+  // Инициализация
   setInitialVideoPosition();
   startVideoPlayback();
   
-  // Восстановление видео при возврате на страницу
+  // Восстановление при возврате на вкладку
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       video.play().catch(e => console.log('Video play interrupted:', e));
