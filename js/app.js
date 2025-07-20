@@ -47,8 +47,8 @@ function initSwiper(isMobile) {
     longSwipes: true,
     touchStartPreventDefault: true,
     
-    // Параметры для визуального смещения текста (только для десктопа)
-    on: isMobile ? undefined : {
+    // Параметры для визуального смещения текста
+    on: {
       progress: function() {
         const slides = this.slides;
         for (let i = 0; i < slides.length; i++) {
@@ -115,26 +115,14 @@ function initVideoControls(swiper, isMobile) {
     }
   };
   
- 
-  // Возврат к нормальной скорости
-  const resetVideoSpeed = () => {
-    gsap.to(video, {
-      duration: 0.5,
-      playbackRate: 1,
-      ease: "power2.out"
-    });
-  };
-  
   // Обработчик изменения слайда (общий для всех типов навигации)
   const handleSlideChange = function() {
     // Пропускаем обработку если слайд не изменился
     if (this.activeIndex === lastSlideIndex) return;
     
-    // Сбрасываем таймер замедления и возвращаем нормальную скорость
-    resetVideoSpeed();
-    
     // Получаем целевую позицию видео для текущего слайда
     const targetTime = videoPositions[this.activeIndex];
+    const currentTime = video.currentTime;
     
     // Отменяем предыдущую анимацию
     if (videoAnimation) {
@@ -150,20 +138,38 @@ function initVideoControls(swiper, isMobile) {
     video.classList.add('change');
     isVideoAnimating = true;
     
-    // Для мобильных: мгновенное переключение
+    // Рассчитываем длительность анимации
+    const timeDifference = Math.abs(targetTime - currentTime);
+    const maxDuration = isMobile ? 0.8 : 1.2;
+    const minDuration = isMobile ? 0.3 : 0.5;
+    
+    // Динамическая длительность на основе расстояния
+    let duration = Math.min(maxDuration, Math.max(minDuration, timeDifference * 0.5));
+    
+    // Для очень близких переходов делаем минимальную анимацию
+    if (timeDifference < 0.5) {
+      duration = minDuration;
+    }
+    
+    // Для мобильных: упрощенная анимация с короткой длительностью
     if (isMobile) {
-      video.currentTime = targetTime;
-      setTimeout(() => {
-        video.classList.remove('change');
-        isVideoAnimating = false;
-      }, 100);
-    } 
-    // Для десктопа: плавная анимация
-    else {
-      // Рассчитываем длительность анимации в зависимости от расстояния
-      const slideDistance = Math.abs(this.activeIndex - this.previousIndex);
-      const duration = Math.min(0.8, Math.max(0.3, slideDistance * 0.3));
+      // Минимальная длительность для мобильных
+      duration = Math.min(0.6, Math.max(0.4, duration));
       
+      videoAnimation = gsap.to(video, {
+        duration: duration,
+        currentTime: targetTime,
+        ease: "power2.out",
+        overwrite: "auto",
+        onComplete: () => {
+          videoAnimation = null;
+          isVideoAnimating = false;
+          video.classList.remove('change');
+        }
+      });
+    } 
+    // Для десктопа: более сложная анимация
+    else {
       videoAnimation = gsap.to(video, {
         duration: duration,
         currentTime: targetTime,
@@ -183,7 +189,6 @@ function initVideoControls(swiper, isMobile) {
   
   // Обработчик для пагинации (буллитов)
   swiper.on('slideChange', function() {
-    // Для буллитов нужно обрабатывать отдельно
     if (this.clickedIndex !== undefined) {
       handleSlideChange.call(this);
     }
@@ -194,18 +199,10 @@ function initVideoControls(swiper, isMobile) {
   const nextBtn = document.querySelector('.swiper-button-next');
   
   prevBtn.addEventListener('click', () => {
-    // Сбрасываем таймер замедления
-    resetVideoSpeed();
-    
-    // Инициируем переход
     swiper.slidePrev();
   });
   
   nextBtn.addEventListener('click', () => {
-    // Сбрасываем таймер замедления
-    resetVideoSpeed();
-    
-    // Инициируем переход
     swiper.slideNext();
   });
   
@@ -213,7 +210,6 @@ function initVideoControls(swiper, isMobile) {
   video.addEventListener('ended', () => {
     video.currentTime = 0.1;
     video.play();
-    resetVideoSpeed(); // Сбросить состояние замедления
   });
   
   // Инициализация позиции и воспроизведения
@@ -224,11 +220,6 @@ function initVideoControls(swiper, isMobile) {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       video.play().catch(e => console.log('Video play interrupted:', e));
-      resetVideoSpeed();
     }
   });
-  
-  // Сброс замедления при любом взаимодействии со слайдером
-  document.querySelector('.swiper').addEventListener('touchstart', resetVideoSpeed);
-  document.querySelector('.swiper').addEventListener('mousedown', resetVideoSpeed);
 }
