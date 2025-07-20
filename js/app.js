@@ -5,18 +5,25 @@ video.playsInline = true;
 video.preload = 'auto';
 video.currentTime = 0;
 
+// Функция определения мобильного устройства
+function isMobileDevice() {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
+
 // Оптимизация: дождаться загрузки важных ресурсов
 window.addEventListener('load', () => {
+  const isMobile = isMobileDevice();
+  
   // Инициализация Swiper после загрузки страницы
-  const swiperText = initSwiper();
-  initVideoControls(swiperText);
+  const swiper = initSwiper(isMobile);
+  initVideoControls(swiper, isMobile);
 });
 
-function initSwiper() {
-  const swiper = new Swiper('.swiper', {
-    speed: 500,
+function initSwiper(isMobile) {
+  return new Swiper('.swiper', {
+    speed: isMobile ? 400 : 600,
     mousewheel: {
-      sensitivity: 1.5,
+      sensitivity: 1.2,
       releaseOnEdges: true
     },
     pagination: {
@@ -28,9 +35,9 @@ function initSwiper() {
       prevEl: '.swiper-button-prev',
       nextEl: '.swiper-button-next'
     },
-    resistanceRatio: 0.5,
-    threshold: 5,
-    preventInteractionOnTransition: false,
+    resistanceRatio: 0.7,
+    threshold: 10,
+    preventInteractionOnTransition: true,
     followFinger: true,
     slideToClickedSlide: false,
     watchSlidesProgress: true,
@@ -38,16 +45,16 @@ function initSwiper() {
     allowTouchMove: true,
     shortSwipes: true,
     longSwipes: true,
-    touchStartPreventDefault: false,
+    touchStartPreventDefault: true,
     
-    // Параметры для визуального смещения текста
-    on: {
+    // Параметры для визуального смещения текста (только для десктопа)
+    on: isMobile ? undefined : {
       progress: function() {
         const slides = this.slides;
         for (let i = 0; i < slides.length; i++) {
           const slide = slides[i];
           const slideProgress = slide.progress;
-          const offset = slideProgress * 50;
+          const offset = Math.sin(slideProgress * Math.PI/2) * 30;
           gsap.set(slide.querySelector('.slide__content'), {
             x: offset
           });
@@ -58,31 +65,42 @@ function initSwiper() {
         for (let i = 0; i < slides.length; i++) {
           const slide = slides[i];
           gsap.set(slide.querySelector('.slide__content'), {
-            transition: `${transition}ms ease-out`
+            transition: `${transition}ms cubic-bezier(0.25, 0.46, 0.45, 0.94)`
           });
         }
       }
     }
   });
-
-  return swiper;
 }
 
-function initVideoControls(swiperText) {
-  let lastSlideIndex = swiperText.activeIndex;
+function initVideoControls(swiper, isMobile) {
   let videoAnimation = null;
   let isVideoAnimating = false;
+  let lastSlideIndex = swiper.activeIndex;
+  
+  // Сохраняем позиции видео для каждого слайда
+  const videoPositions = [];
   
   // Установка начальной позиции видео
   const setInitialVideoPosition = () => {
-    if (video.readyState >= 2) { // HAVE_CURRENT_DATA
-      const initialTime = (video.duration / (swiperText.slides.length - 1)) * swiperText.activeIndex;
-      video.currentTime = initialTime || 0;
+    if (video.readyState >= 2) {
+      calculateVideoPositions();
+      video.currentTime = videoPositions[swiper.activeIndex];
     } else {
       video.addEventListener('loadedmetadata', () => {
-        const initialTime = (video.duration / (swiperText.slides.length - 1)) * swiperText.activeIndex;
-        video.currentTime = initialTime;
+        calculateVideoPositions();
+        video.currentTime = videoPositions[swiper.activeIndex];
       }, { once: true });
+    }
+  };
+  
+  // Расчет позиций видео для каждого слайда
+  const calculateVideoPositions = () => {
+    const slideCount = swiper.slides.length;
+    const segment = video.duration / (slideCount - 1);
+    
+    for (let i = 0; i < slideCount; i++) {
+      videoPositions[i] = Math.max(0.1, i * segment);
     }
   };
   
@@ -92,81 +110,110 @@ function initVideoControls(swiperText) {
     
     if (playPromise !== undefined) {
       playPromise.catch(error => {
-        showPlayButton();
+        console.error('Video playback error:', error);
       });
     }
   };
   
-  // Обработчики событий Swiper
-  swiperText.on('slideChangeTransitionStart', function() {
-    video.classList.add('change');
+ 
+  // Возврат к нормальной скорости
+  const resetVideoSpeed = () => {
+    gsap.to(video, {
+      duration: 0.5,
+      playbackRate: 1,
+      ease: "power2.out"
+    });
+  };
+  
+  // Обработчик изменения слайда (общий для всех типов навигации)
+  const handleSlideChange = function() {
+    // Пропускаем обработку если слайд не изменился
+    if (this.activeIndex === lastSlideIndex) return;
     
-    // Рассчитываем целевую позицию видео
-    const targetTime = (video.duration / (this.slides.length - 1)) * this.activeIndex;
+    // Сбрасываем таймер замедления и возвращаем нормальную скорость
+    resetVideoSpeed();
+    
+    // Получаем целевую позицию видео для текущего слайда
+    const targetTime = videoPositions[this.activeIndex];
     
     // Отменяем предыдущую анимацию
     if (videoAnimation) {
       videoAnimation.kill();
-      videoAnimation = null;
       isVideoAnimating = false;
     }
     
-    // Создаем новую анимацию
-    isVideoAnimating = true;
-    videoAnimation = gsap.to(video, {
-      duration: 0.8,
-      currentTime: targetTime,
-      ease: "power2.out",
-      overwrite: "auto",
-      onComplete: () => {
-        videoAnimation = null;
-        isVideoAnimating = false;
-      },
-      onInterrupt: () => {
-        isVideoAnimating = false;
-      }
-    });
-  });
-  
-  swiperText.on('slideChangeTransitionEnd', function() {
-    video.classList.remove('change');
+    // Определяем направление перехода
+    const direction = this.activeIndex > lastSlideIndex ? 1 : -1;
     lastSlideIndex = this.activeIndex;
-  });
+    
+    // Общая логика анимации
+    video.classList.add('change');
+    isVideoAnimating = true;
+    
+    // Для мобильных: мгновенное переключение
+    if (isMobile) {
+      video.currentTime = targetTime;
+      setTimeout(() => {
+        video.classList.remove('change');
+        isVideoAnimating = false;
+      }, 100);
+    } 
+    // Для десктопа: плавная анимация
+    else {
+      // Рассчитываем длительность анимации в зависимости от расстояния
+      const slideDistance = Math.abs(this.activeIndex - this.previousIndex);
+      const duration = Math.min(0.8, Math.max(0.3, slideDistance * 0.3));
+      
+      videoAnimation = gsap.to(video, {
+        duration: duration,
+        currentTime: targetTime,
+        ease: direction > 0 ? "power2.out" : "power2.in",
+        overwrite: "auto",
+        onComplete: () => {
+          videoAnimation = null;
+          isVideoAnimating = false;
+          video.classList.remove('change');
+        }
+      });
+    }
+  };
+
+  // Подписка на события Swiper
+  swiper.on('slideChangeTransitionStart', handleSlideChange);
   
-  // Разрешаем быстрое переключение слайдов
-  swiperText.on('slideChange', function() {
-    if (isVideoAnimating && videoAnimation) {
-      videoAnimation.kill();
-      videoAnimation = null;
-      isVideoAnimating = false;
+  // Обработчик для пагинации (буллитов)
+  swiper.on('slideChange', function() {
+    // Для буллитов нужно обрабатывать отдельно
+    if (this.clickedIndex !== undefined) {
+      handleSlideChange.call(this);
     }
   });
-  
-  // Оптимизация кнопок навигации
+
+  // Обработчики для кнопок навигации
   const prevBtn = document.querySelector('.swiper-button-prev');
   const nextBtn = document.querySelector('.swiper-button-next');
   
-  const handleNavClick = (direction) => {
-    if (isVideoAnimating && videoAnimation) {
-      videoAnimation.kill();
-      videoAnimation = null;
-      isVideoAnimating = false;
-    }
+  prevBtn.addEventListener('click', () => {
+    // Сбрасываем таймер замедления
+    resetVideoSpeed();
     
-    if (direction === 'prev') {
-      swiperText.slidePrev();
-    } else {
-      swiperText.slideNext();
-    }
-  };
+    // Инициируем переход
+    swiper.slidePrev();
+  });
   
-  prevBtn.addEventListener('click', () => handleNavClick('prev'));
-  nextBtn.addEventListener('click', () => handleNavClick('next'));
+  nextBtn.addEventListener('click', () => {
+    // Сбрасываем таймер замедления
+    resetVideoSpeed();
+    
+    // Инициируем переход
+    swiper.slideNext();
+  });
   
   // Перезапуск видео при завершении
   video.addEventListener('ended', () => {
-    video.currentTime = 0;
+    video.currentTime = 0.1;
     video.play();
+    resetVideoSpeed(); // Сбросить состояние замедления
   });
   
   // Инициализация позиции и воспроизведения
@@ -177,64 +224,11 @@ function initVideoControls(swiperText) {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       video.play().catch(e => console.log('Video play interrupted:', e));
+      resetVideoSpeed();
     }
   });
-}
-
-// Функция для показа кнопки воспроизведения
-function showPlayButton() {
-  // Проверяем, не добавлен ли уже оверлей
-  if (document.getElementById('video-overlay')) return;
   
-  const overlay = document.createElement('div');
-  overlay.id = 'video-overlay';
-  overlay.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.8);
-    z-index: 1000;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    backdrop-filter: blur(5px);
-  `;
-  
-  const playButton = document.createElement('button');
-  playButton.textContent = 'Play Video';
-  playButton.style.cssText = `
-    padding: 15px 30px;
-    font-size: 18px;
-    background: #fff;
-    color: #000;
-    border: none;
-    border-radius: 30px;
-    cursor: pointer;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    transition: transform 0.3s ease, background 0.3s ease;
-  `;
-  
-  playButton.addEventListener('click', () => {
-    video.play().then(() => {
-      overlay.remove();
-    }).catch(error => {
-      console.error('Error playing video:', error);
-    });
-  });
-  
-  playButton.addEventListener('mouseenter', () => {
-    playButton.style.transform = 'scale(1.05)';
-    playButton.style.background = '#f0f0f0';
-  });
-  
-  playButton.addEventListener('mouseleave', () => {
-    playButton.style.transform = 'scale(1)';
-    playButton.style.background = '#fff';
-  });
-  
-  overlay.appendChild(playButton);
-  document.body.appendChild(overlay);
+  // Сброс замедления при любом взаимодействии со слайдером
+  document.querySelector('.swiper').addEventListener('touchstart', resetVideoSpeed);
+  document.querySelector('.swiper').addEventListener('mousedown', resetVideoSpeed);
 }
